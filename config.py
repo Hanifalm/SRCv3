@@ -13,9 +13,9 @@ YTUB_COOKIES = """
 # write here yt cookies
 """
 
-API_ID = int(getenv("API_ID", "9820477"))
-API_HASH = getenv("API_HASH", "b7ca52169afca08898b263119d95d80d")
-BOT_TOKEN = getenv("BOT_TOKEN", "8102434914:AAHqeLXygE8Y0jUrnyIlDJfW3iwGI9qFYVg")
+API_ID = int(getenv("API_ID", ""))
+API_HASH = getenv("API_HASH", "")
+BOT_TOKEN = getenv("BOT_TOKEN", "8102434914")
 OWNER_ID = list(map(int, getenv("OWNER_ID", "1437445074").split()))
 MONGO_DB = getenv("MONGO_DB", "0")
 LOG_GROUP = getenv("LOG_GROUP", "-1002256415307")
