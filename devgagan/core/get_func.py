@@ -36,6 +36,10 @@ from devgagan.core.mongo import db as odb
 from telethon import TelegramClient, events, Button
 from devgagantools import fast_upload
 
+MAX_FILE_SIZE = int(1.9 * 1024 * 1024 * 1024)   # 1,9 GB dalam byte
+
+
+
 def thumbnail(sender):
     return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
 
@@ -56,6 +60,11 @@ if STRING:
 else:
     pro = None
     print("STRING is not available. 'app' is set to None.")
+    
+    
+
+    
+    
     
 async def fetch_upload_method(user_id):
     """Fetch the user's preferred upload method."""
@@ -308,6 +317,27 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
             os.remove(file)
             return
 
+
+# Ambil ukuran file yang didownload
+file_size = get_message_file_size(msg)
+
+# Cek apakah file melebihi batas MAX_FILE_SIZE
+if file_size >= MAX_FILE_SIZE:
+    # Hapus pesan progress jika ada
+    await edit.delete()
+    # Panggil fungsi split_and_upload_file untuk memecah dan mengunggah file secara bertahap
+    await split_and_upload_file(app, sender, target_chat_id, file, caption, topic_id)
+    return
+elif file_size > size_limit:
+    # Jika file besar (tetapi kurang dari batas MAX_FILE_SIZE) gunakan logika file besar
+    await handle_large_file(file, sender, edit, caption)
+    return
+else:
+    # Untuk file kecil, langsung unggah
+    await upload_media(sender, target_chat_id, file, caption, edit, topic_id)
+
+
+
         # Upload media
         # await edit.edit("**Checking file...**")
         if file_size > size_limit and (free_check == 1 or pro is None):
@@ -469,14 +499,20 @@ async def copy_message_with_chat_id(app, userbot, sender, chat_id, message_id, e
             elif msg.video or msg.document:
                 freecheck = await chk_user(chat_id, sender)
                 file_size = get_message_file_size(msg)
-                if file_size > size_limit and (freecheck == 1 or pro is None):
-                    await edit.delete()
-                    await split_and_upload_file(app, sender, target_chat_id, file, caption, topic_id)
-                    return       
-                elif file_size > size_limit:
-                    await handle_large_file(file, sender, edit, final_caption)
-                    return
-                await upload_media(sender, target_chat_id, file, final_caption, edit, topic_id)
+               if file_size >= MAX_FILE_SIZE:
+    # Sebelum memproses, hapus pesan progress jika ada
+    await edit.delete()
+    # Langsung panggil fungsi untuk membagi dan mengunggah file
+    await split_and_upload_file(app, sender, target_chat_id, file, caption, topic_id)
+    return
+elif file_size > size_limit:
+    # Jika ada logika lain untuk file besar kurang dari ambang batas,
+    # panggil fungsi handle_large_file misalnya (opsional)
+    await handle_large_file(file, sender, edit, caption)
+    return
+else:
+    await upload_media(sender, target_chat_id, file, caption, edit, topic_id)
+
             elif msg.audio:
                 result = await app.send_audio(target_chat_id, file, caption=final_caption, reply_to_message_id=topic_id)
             elif msg.voice:
@@ -835,11 +871,11 @@ async def lock_command_handler(event):
 
 
 async def handle_large_file(file, sender, edit, caption):
-    if pro is None:
-        await edit.edit('**__ ❌ 4GB trigger not found__**')
-        os.remove(file)
-        gc.collect()
-        return
+    # Alih-alih menggunakan konektor 'pro', langsung lakukan pembagian file
+    target_chat_id = user_chat_ids.get(sender, sender)
+    await edit.edit("**File besar terdeteksi. Memulai proses pemecahan file...**")
+    await split_and_upload_file(app, sender, target_chat_id, file, caption, topic_id=None)
+
     
     dm = None
     
