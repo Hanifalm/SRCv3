@@ -23,6 +23,9 @@ from devgagan.core.mongo import db as odb
 from telethon import TelegramClient, events, Button
 from devgagantools import fast_upload
 
+# Deklarasi constant MAX_FILE_SIZE (1,9 GB dalam byte)
+MAX_FILE_SIZE = int(1.9 * 1024 * 1024 * 1024)
+
 def thumbnail(sender):
     return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
 
