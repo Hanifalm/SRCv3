@@ -143,8 +143,7 @@ async def upload_media(sender, target_chat_id, file, caption, edit, topic_id):
                 gf, file,
                 reply=progress_message,
                 name=None,
-                progress_bar_function=lambda done, total: progress_callback(done, total, sender),
-                user_id=sender
+                progress_bar_function=lambda done, total: progress_callback(done, total, sender)
             )
             await progress_message.delete()
 
@@ -163,7 +162,6 @@ async def upload_media(sender, target_chat_id, file, caption, edit, topic_id):
                 caption=caption,
                 attributes=attributes,
                 reply_to=topic_id,
-                parse_mode='html',
                 thumb=thumb_path
             )
             await gf.send_file(
@@ -171,7 +169,6 @@ async def upload_media(sender, target_chat_id, file, caption, edit, topic_id):
                 uploaded,
                 caption=caption,
                 attributes=attributes,
-                parse_mode='html',
                 thumb=thumb_path
             )
 
@@ -181,8 +178,7 @@ async def upload_media(sender, target_chat_id, file, caption, edit, topic_id):
 
     finally:
         if thumb_path and os.path.exists(thumb_path):
-            if os.path.basename(thumb_path) != f"{sender}.jpg":  # Check if the filename is not {sender}.jpg
-                os.remove(thumb_path)
+            os.remove(thumb_path)
         gc.collect()
 
 
@@ -263,6 +259,12 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
         
         # Handle file media (photo, document, video)
         file_size = get_message_file_size(msg)
+
+
+# Definisikan free_check (ubah ke 1 jika fitur free uploader ingin diaktifkan)
+        free_check = 0
+
+
 
         # if file_size and file_size > size_limit and pro is None:
         #     await app.edit_message_text(sender, edit_id, "**❌ 4GB Uploader not found**")
@@ -672,7 +674,7 @@ async def callback_query_handler(event):
         await event.respond('Please send the photo you want to set as the thumbnail.')
     
     elif event.data == b'pdfwt':
-        await event.respond("This feature is not available yet in public repo...")
+        await event.respond("Watermark is Pro+ Plan.. contact @kingofpatal")
         return
 
     elif event.data == b'uploadmethod':
@@ -1111,8 +1113,8 @@ async def split_and_upload_file(app, sender, target_chat_id, file_path, caption,
         return
 
     file_size = os.path.getsize(file_path)
-    start = await app.send_message(sender, f"ℹ️ File size: {file_size / (1024 * 1024):.2f} MB")
-    PART_SIZE =  1.9 * 1024 * 1024 * 1024
+    await app.send_message(sender, f"ℹ️ File size: {file_size / (1024 * 1024):.2f} MB")
+    PART_SIZE = int(1.9 * 1024 * 1024 * 1024)  # 1.9 GB per part
 
     part_number = 0
     async with aiofiles.open(file_path, mode="rb") as f:
@@ -1121,25 +1123,30 @@ async def split_and_upload_file(app, sender, target_chat_id, file_path, caption,
             if not chunk:
                 break
 
-            # Create part filename
+            # Buat nama file part
             base_name, file_ext = os.path.splitext(file_path)
             part_file = f"{base_name}.part{str(part_number).zfill(3)}{file_ext}"
+            try:
+                async with aiofiles.open(part_file, mode="wb") as part_f:
+                    await part_f.write(chunk)
+                print(f"Part {part_number+1} berhasil dibuat: {part_file}")
+            except Exception as e:
+                print(f"Error saat menulis part {part_number+1}: {e}")
+                return
 
-            # Write part to file
-            async with aiofiles.open(part_file, mode="wb") as part_f:
-                await part_f.write(chunk)
-
-            # Uploading part
+            # Upload part file
             edit = await app.send_message(target_chat_id, f"⬆️ Uploading part {part_number + 1}...")
-            part_caption = f"{caption} \n\n**Part : {part_number + 1}**"
-            await app.send_document(target_chat_id, document=part_file, caption=part_caption, reply_to_message_id=topic_id,
+            part_caption = f"{caption} \n\n**Part: {part_number + 1}**"
+            await app.send_document(
+                target_chat_id,
+                document=part_file,
+                caption=part_caption,
+                reply_to_message_id=topic_id,
                 progress=progress_bar,
                 progress_args=("╭─────────────────────╮\n│      **__Pyro Uploader__**\n├─────────────────────", edit, time.time())
             )
             await edit.delete()
-            os.remove(part_file)  # Cleanup after upload
-
+            os.remove(part_file)
             part_number += 1
 
-    await start.delete()
     os.remove(file_path)
