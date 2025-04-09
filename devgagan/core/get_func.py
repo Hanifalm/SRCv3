@@ -82,7 +82,7 @@ async def format_caption_to_html(caption: str) -> str:
 
 async def upload_media(sender, target_chat_id, file, caption, edit, topic_id):
     try:
-        upload_method = await fetch_upload_method(sender)  # Fetch the upload method (Pyrogram or Telethon)
+        upload_method = await fetch_upload_method(sender)
         metadata = video_metadata(file)
         width, height, duration = metadata['width'], metadata['height'], metadata['duration']
         try:
@@ -137,43 +137,82 @@ async def upload_media(sender, target_chat_id, file, caption, edit, topic_id):
                 await asyncio.sleep(2)
                 await dm.copy(LOG_GROUP)
 
-        # Telethon upload
+        # Telethon upload (FIXED VERSION)
         elif upload_method == "Telethon":
-            await edit.delete()
-            progress_message = await gf.send_message(sender, "**__Uploading...__**")
-            caption = await format_caption_to_html(caption) or ""
-            uploaded = await fast_upload(
-                gf, file,
-                reply=progress_message,
-                name=None,
-                progress_bar_function=lambda done, total: progress_callback(done, total, sender)
-            )
-            await progress_message.delete()
+            try:
+                # Convert all IDs to integers
+                target_chat_id = int(target_chat_id)
+                log_chat = int(LOG_GROUP)
+                
+                # Handle topic ID conversion
+                if topic_id and isinstance(topic_id, str) and topic_id.isdigit():
+                    topic_id = int(topic_id)
+                elif not isinstance(topic_id, int):
+                    topic_id = None
 
-            attributes = [
-                DocumentAttributeVideo(
-                    duration=duration,
-                    w=width,
-                    h=height,
-                    supports_streaming=True
+                # Handle empty caption
+                final_caption = await format_caption_to_html(caption) if caption else ""
+                
+                await edit.delete()
+                progress_message = await gf.send_message(sender, "**__Uploading...__**")
+
+                # Upload file
+                uploaded = await fast_upload(
+                    gf, file,
+                    reply=progress_message,
+                    name=None,
+                    progress_bar_function=lambda done, total: progress_callback(done, total, sender)
                 )
-            ] if file.split('.')[-1].lower() in video_formats else []
+                await progress_message.delete()
 
-            await gf.send_file(
-                target_chat_id,
-                uploaded,
-                caption=caption,
-                attributes=attributes,
-                reply_to=topic_id,
-                thumb=thumb_path
-            )
-            await gf.send_file(
-                LOG_GROUP,
-                uploaded,
-                caption=caption,
-                attributes=attributes,
-                thumb=thumb_path
-            )
+                # Prepare video attributes
+                attributes = []
+                if file.split('.')[-1].lower() in video_formats:
+                    attributes.append(
+                        DocumentAttributeVideo(
+                            duration=duration,
+                            w=width,
+                            h=height,
+                            supports_streaming=True
+                        )
+                    )
+
+                # Resolve entity first
+                try:
+                    entity = await gf.get_entity(target_chat_id)
+                    log_entity = await gf.get_entity(log_chat)
+                except ValueError as e:
+                    await app.send_message(sender, f"❌ Telethon Error: {str(e)}")
+                    return
+
+                # Handle thumbnail
+                thumb = thumb_path if thumb_path and os.path.exists(thumb_path) else None
+
+                # Send with HTML parse mode
+                await gf.send_file(
+                    entity=entity,
+                    file=uploaded,
+                    caption=final_caption,
+                    attributes=attributes,
+                    reply_to=topic_id,
+                    thumb=thumb,
+                    parse_mode='html'
+                )
+
+                # Send to log group
+                await gf.send_file(
+                    entity=log_entity,
+                    file=uploaded,
+                    caption=final_caption,
+                    attributes=attributes,
+                    thumb=thumb,
+                    parse_mode='html'
+                )
+
+            except Exception as e:
+                await app.send_message(LOG_GROUP, f"**Telethon Upload Failed:** {str(e)}")
+                await app.send_message(sender, f"❌ Telethon Error: {str(e)}")
+                raise e
 
     except Exception as e:
         await app.send_message(LOG_GROUP, f"**Upload Failed:** {str(e)}")
@@ -191,7 +230,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
         msg_link = msg_link.split("?single")[0]
         chat, msg_id = None, None
         saved_channel_ids = load_saved_channel_ids()
-        size_limit = 2 * 1024 * 1024 * 1024  # 1.99 GB size limit
+        size_limit = 1.9 * 1024 * 1024 * 1024  # 1.99 GB size limit
         file = ''
         edit = ''
         # Extract chat and message ID for valid Telegram links
@@ -427,7 +466,7 @@ async def copy_message_with_chat_id(app, userbot, sender, chat_id, message_id, e
     target_chat_id = user_chat_ids.get(sender, sender)
     file = None
     result = None
-    size_limit = 2 * 1024 * 1024 * 1024  # 2 GB size limit
+    size_limit = 1.9 * 1024 * 1024 * 1024  # 2 GB size limit
 
     try:
         msg = await app.get_messages(chat_id, message_id)
